@@ -1,0 +1,7 @@
+{
+    "from": "The Marketing Team<sender@email.com>",
+    "to": "receiver@email.com",
+    "subject": "A product is being launch soon...",
+    "mimeType": "text/plain",
+    "body": "Hi {{TITLE}} {{FIRST_NAME}} {{LAST_NAME}}, \nToday, {{TODAY}}, we would like to tell you that .... Sincerely,\nThe Marketing Team"
+}
