@@ -1,20 +1,26 @@
 import pandas as pd
 import numpy as np
-import json
-import csv
+import os
+import logging
 
 from datetime import datetime as dt
-from helpers.helpers import get_absolute_url, muiltple_replace
+from helpers.helpers import get_absolute_url, multiple_replace
 
-EMAIL_TEMPLATE_KEYS = [  'to', 'from', 'subject', 'mimeType', 'body' ]
+EMAIL_TEMPLATE_KEYS = [ 'to', 'from', 'subject', 'mimeType', 'body' ]
 
-class EmailGenerator():
+class EmailClass(object):
     def __init__(self, template_path, customer_path, output_path, error_path):
         self.template_data = get_absolute_url(template_path)
         self.customer_data = get_absolute_url(customer_path)
         self.output_path = get_absolute_url(output_path)
         self.error_path = get_absolute_url(error_path)
-        self.today = dt.now().strftime('%d %b %Y')
+        self.email_paths= []
+
+        self.smtp_host = os.environ.get('SMTP_HOST')
+        self.smtp_port = os.environ.get('SMTP_PORT')
+        self.smtp_username = os.environ.get('SMTP_HOST')
+        self.smtp_host = os.environ.get('SMTP_HOST')
+        self.smtp_host = os.environ.get('SMTP_HOST')
 
     @property
     def template_data(self):
@@ -43,20 +49,20 @@ class EmailGenerator():
             raise Exception('Failed to load customer data provided: {}'.format(e))
 
 
-    def process_email_content(self) -> str:
+    def process_email_content(self) -> bool:
         try:
-            results = []
-            customer_keys = self._customer_data.columns
+            state = False
             invalid_email = self._customer_data[self._customer_data.EMAIL.isnull()]
             valid_email = self._customer_data[self._customer_data.EMAIL.notnull()]
 
             if not invalid_email.empty:
                 # WRITING THE INVALID EMAIL INTO ERROR CSV FILE PATH PROVIDED
-                invalid_email.to_csv(self.error_path)
+                invalid_email.to_csv(self.error_path, index=False)
 
             if not valid_email.empty:
                 # PROCESS THE CUSTOMER DATA WITH THE EMAIL TEMPLATE
-                for customer in self._customer_data.itertuples(name="Customer", index=False):
+                for customer in valid_email.itertuples(name="Customer", index=False):
+                    print(customer)
                     json_content = self._template_data[0]
                     customer = customer._asdict()
 
@@ -64,36 +70,27 @@ class EmailGenerator():
 
                     str_to_replace = customer
 
-                    str_to_replace['TODAY'] = self.today
+                    str_to_replace['TODAY'] = dt.now().strftime('%d %b %Y')
 
+                    json_content['body'] = multiple_replace(json_content['body'], str_to_replace)
 
-                    json_content['body'] = muiltple_replace(json_content['body'], str_to_replace)
+                    file_name = '{email}_{timestamp}.json'.format(
+                        email=customer['EMAIL'],
+                        timestamp=dt.now().timestamp()
+                    )
+                    file_path = os.path.join(self.output_path, file_name)
 
-                    print(json_content)
+                    json_content.to_json(file_path , indent=4)
+                    self.email_paths.append(file_path)
 
-        # for row in self._customer_data.itertuples():
-            #     content = self._template_data
-
-            #     if '{{TODAY}}' in content['body']:
-            #         content['body'] = content['body'].replace('{{TODAY}}', self.today)
-
-            #     row_dict = row._asdict()
-
-            #     print('E: {}'.format(row_dict.get('EMAIL', None)))
-
-
-            #     for rkey in customer_keys:
-            #         if rkey == 'EMAIL':
-            #             content['to'] = row_dict[rkey]
-
-
-            #         str_to_replace = '{{' + rkey + '}}'
-            #         if str_to_replace in content['body']:
-            #             content['body'] = content['body'].replace(str_to_replace, row_dict[rkey])
-
-            #     results.append(content)
-            # print(results)
+                state = True
         except pd.errors.ParserError as e:
             print('[ERROR] process data with pandas: {}'.format(e))
         except Exception as e:
             print('[ERROR] process email content: '.format(e))
+        finally:
+            return state
+
+    def send_email(self):
+
+        print(self.email_paths)
