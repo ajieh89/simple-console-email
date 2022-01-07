@@ -8,6 +8,6 @@ def get_absolute_url(path):
 
 def multiple_replace(string, replace_dict):
     for  key, value in replace_dict.items():
-        string = string.replace('{{' + key.upper() + '}}', value)
+        string = string.replace('{{' + key.upper() + '}}', str(value))
 
     return string

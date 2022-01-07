@@ -1,8 +1,11 @@
 import pandas as pd
 import numpy as np
 import os
-import logging
+import smtplib
+import json
 
+from email.message import EmailMessage
+from dotenv import load_dotenv
 from datetime import datetime as dt
 from helpers.helpers import get_absolute_url, multiple_replace
 
@@ -10,6 +13,7 @@ EMAIL_TEMPLATE_KEYS = [ 'to', 'from', 'subject', 'mimeType', 'body' ]
 
 class EmailClass(object):
     def __init__(self, template_path, customer_path, output_path, error_path):
+        load_dotenv()
         self.template_data = get_absolute_url(template_path)
         self.customer_data = get_absolute_url(customer_path)
         self.output_path = get_absolute_url(output_path)
@@ -18,9 +22,8 @@ class EmailClass(object):
 
         self.smtp_host = os.environ.get('SMTP_HOST')
         self.smtp_port = os.environ.get('SMTP_PORT')
-        self.smtp_username = os.environ.get('SMTP_HOST')
-        self.smtp_host = os.environ.get('SMTP_HOST')
-        self.smtp_host = os.environ.get('SMTP_HOST')
+        self.smtp_username = os.environ.get('SMTP_USERNAME')
+        self.smtp_password = os.environ.get('SMTP_PASSWORD')
 
     @property
     def template_data(self):
@@ -62,7 +65,7 @@ class EmailClass(object):
             if not valid_email.empty:
                 # PROCESS THE CUSTOMER DATA WITH THE EMAIL TEMPLATE
                 for customer in valid_email.itertuples(name="Customer", index=False):
-                    print(customer)
+
                     json_content = self._template_data[0]
                     customer = customer._asdict()
 
@@ -80,6 +83,9 @@ class EmailClass(object):
                     )
                     file_path = os.path.join(self.output_path, file_name)
 
+                    if not os.path.isdir(self.output_path):
+                        os.mkdir(self.output_path)
+
                     json_content.to_json(file_path , indent=4)
                     self.email_paths.append(file_path)
 
@@ -91,6 +97,27 @@ class EmailClass(object):
         finally:
             return state
 
-    def send_email(self):
 
-        print(self.email_paths)
+    def send_email(self)->bool:
+        try:
+            for mp in self.email_paths:
+                with open(mp) as json_file:
+                    data = json.load(json_file)
+
+                    with smtplib.SMTP(self.smtp_host, self.smtp_port) as smtp:
+                        smtp.starttls()
+                        # smtp.login(self.smtp_username, self.smtp_password)
+                        smtp.login('lim.zan.jieh@spectos.com', 'jieh8911070704')
+                        # construct the email content
+                        email = EmailMessage()
+                        email['Subject'] = data.get('subject')
+                        email['From'] = data.get('from')
+                        email['To'] = data.get('to')
+                        email.add_header('Content-Type', data.get('mimeType'))
+                        email.set_payload(data.get('body'))
+
+                        smtp.send_message(email)
+                        os.remove(mp)
+
+        except smtplib.SMTPException as e:
+            print("[ERROR] STMPException: {}".format(e))
